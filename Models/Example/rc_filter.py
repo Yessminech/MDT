@@ -1,22 +1,30 @@
 from fmpy import simulate_fmu
 import matplotlib.pyplot as plt
 import matplotlib
-matplotlib.use("Agg")      # Or remove this if you fixed GUI backend
+import numpy as np
 
+matplotlib.use("Agg")  # no GUI
+
+fmu_path = "RC_Filter.fmu"
+
+# Simulate 10 ms, request only capacitor voltage
 res = simulate_fmu(
-    'RC_Filter.fmu',
-    start_time=0,
+    fmu_path,
+    start_time=0.0,
     stop_time=0.01,
-    output=['Vin.signalSource.y', 'Vs.v'],
-    start_values={'Vin.f': 1000, 'Vin.V': 1.0}
+    output=['C1.v'],        # <--- ONLY this
+    step_size=1e-5          # small step for smooth curve
 )
 
 t = res['time']
-vin = res['Vin.signalSource.y']        # INPUT
-vout = res['Vs.v']        # OUTPUT
+vc = res['C1.v']
 
-plt.plot(t, vin, label='Vin (input)')
-plt.plot(t, vout, label='Vout (Vs.v)')
-plt.legend()
+plt.figure(figsize=(8, 4))
+plt.plot(t, vc, label='Capacitor voltage C1.v')
+plt.xlabel("Time [s]")
+plt.ylabel("Voltage [V]")
+plt.title("Charging of C1 from 0 V to 3.3 V")
 plt.grid(True)
-plt.savefig("rc_filter.png", dpi=200)
+plt.legend()
+plt.tight_layout()
+plt.savefig("RC_Filter.png", dpi=200)

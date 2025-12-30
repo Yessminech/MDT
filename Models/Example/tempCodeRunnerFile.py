@@ -1,22 +1,19 @@
-from fmpy import simulate_fmu
-import matplotlib.pyplot as plt
-import matplotlib
-matplotlib.use("Agg")      # Or remove this if you fixed GUI backend
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
 
-res = simulate_fmu(
-    'RC_Filter.fmu',
-    start_time=0,
-    stop_time=0.01,
-    output=['Vin.v', 'C1.v'],
-    start_values={'Vin.f': 1000}
-)
+ax1.set_xlabel("Time (s)")
+ax1.set_ylabel("Values")
+ax1.plot(result_adu_non_ideal['time'], result_adu_non_ideal['ramp.y'], color=COLOR_BLUE, label='Input Voltage (V)')
+ax1.plot(result_adu_non_ideal['time'], result_adu_non_ideal['dau.real_o'], color=COLOR_ORANGE, label='ADU Output (V)')
+ax1.set_title("Non-Ideal ADU8bit")
+ax1.legend()
 
-t = res['time']
-vin = res['Vin.v']        # INPUT
-vout = res['C1.v']        # OUTPUT
+ax2.set_xlabel("Time (s)")
+ax2.set_ylabel("Values")
+ax2.plot(result_adu_ideal['time'], result_adu_ideal['rampVoltage.v'], color=COLOR_BLUE, label='Input Voltage (V)')
+ax2.plot(result_adu_ideal['time'], result_adu_ideal['aDUideal.y'], color=COLOR_ORANGE, label='ADU Output (V)')
+ax2.set_title("Ideal ADU8bit")
+ax2.legend()
 
-plt.plot(t, vin, label='Vin (input)')
-plt.plot(t, vout, label='Vout (C1.v)')
-plt.legend()
-plt.grid(True)
-plt.savefig("rc_filter.png", dpi=200)
+fig.suptitle("FMU Simulation Results for ADU8bit")
+fig.tight_layout()
+plt.show()

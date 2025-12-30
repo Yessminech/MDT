@@ -1,0 +1,11 @@
+Neben numpy und matplotlib muss das Package FMPy installiert werden. Die Dokumenta-
+tion ist unter https://github.com/CATIA-Systems/FMPy zu finden. Hiermit können
+sogenannte Functional-Mockup-Units (FMU) in Python ausgeführt werden. In den
+FMUs sind Simulationsmodelle z.B. einer Messbrücke enthalten und dienen zur Ge-
+nerierung von "Messdaten". Die FMUs erhalten sind in das Arbeitsverzeichnis zu kopieren.
+Neben den notwendigen Packages und FMUs muss noch die Datei MTFunktionen.py
+im Arbeitsverzeichnis abgelegt werden. Damit die FMUs aufgerufen werden kön-
+nen, befindet sich in dieser Datei ein absoluter Pfad zu den FMUs, den Sie anpassen
+müssen. Wählen Sie also ein Arbeitsverzeichnis, kopieren Sie alle zur Verfügung ge-
+stellten Dateien hinein und führen Sie am besten Python aus dem Arbeitsverzeichnis
+aus.
