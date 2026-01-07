@@ -46,7 +46,7 @@ Leistungsmessung(N) -> Tuple[np.ndarray, np.ndarray,np.ndarray, np.ndarray]:
 
 """
 # Dieser Pfad muss angepasst werden. Tragen Sie hier den Pfad zu den Datein mit den FMUs ein. 
-FMUPath = "C:/Users/Guehmann/Nextcloud/Lehre/01 MT1/Klausuren/HausarbeitPruefung/"
+FMUPath = ""
 
 from typing import Tuple
 import numpy as np
