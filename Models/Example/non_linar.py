@@ -7,7 +7,7 @@ COLOR_ORANGE = 'tab:orange'
 
 
 def ADU8bit_non_ideal(): # TODO why is this showing ideal behavior?
-    fmu_file = '/tmp/OpenModelica_yessmine/OMEdit/ADU_Non_Ideal.fmu'
+    fmu_file = 'ADU_Non_Ideal.fmu'
 
     uin = 'ramp.y'      
     uout = 'dau.real_o'   
@@ -25,7 +25,7 @@ def ADU8bit_non_ideal(): # TODO why is this showing ideal behavior?
     return result_adu
 
 def ADU8bit_ideal():
-    fmu_file = '/tmp/OpenModelica_yessmine/OMEdit/ADU_Ideal.fmu'
+    fmu_file = 'ADU_Ideal.fmu'
 
     uin = 'rampVoltage.v'      
     uout = 'aDUideal.y'   
