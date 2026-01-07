@@ -1,4 +1,23 @@
+
+"""
+@author: David
+
+TODO (David): 
+-File-Dialog öffnen und FMU laden
+-Buttons im linken Panel einfügen und Funktionen dessen definieren
+-Parameter dynamisch laden und veränderbar machen
+-start_sim Funktion definieren
+"""
+
 import customtkinter as ctk
+from tkinter import filedialog
+from fmpy import read_model_description, extract, simulate_fmu
+
+import matplotlib
+matplotlib.use("TkAgg")
+from matplotlib.figure import Figure
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+
 
 ctk.set_appearance_mode("dark")   # optionen: light, system, dark
 ctk.set_default_color_theme("green")  # optionen: dark-blue, green, etc.
@@ -49,9 +68,25 @@ class BaseGUI(ctk.CTk):
         title = ctk.CTkLabel(self.left_panel, text="Parameter", font=("Arial", 18, "bold"))
         title.pack(pady=10)
 
-        # Beispiel-Label
-        placeholder = ctk.CTkLabel(self.left_panel, text="(Parameter hier rein)")
-        placeholder.pack(pady=10)
+        # dynamische Felder für Parameter.
+        #Scrollbar? ja? nein? -> gerne feedback
+        self.parameter_scroll = ctk.CTkScrollableFrame(self.left_panel, width=230, height=400)
+        self.parameter_scroll.pack(pady=5, padx=5, fill="both", expand=True)
+
+        #buttons WORK IN PROGRESS#####################################################
+        """
+        self.btn_sim = ctk.CTkButton(self.left_panel, text="Sim starten", command=self.run_sim) #start_sim muss definiert werden
+        self.btn_sim.pack(pady=10)
+
+        self.parameter_entries = {}
+
+        """
+
+
+
+        # placeholder unkommentieren wenn leer
+        #placeholder = ctk.CTkLabel(self.left_panel, text="(Parameter hier rein)")
+        #placeholder.pack(pady=10)
 
     
     # HAUPTANSICHT (Plot/Simulation)
@@ -63,8 +98,20 @@ class BaseGUI(ctk.CTk):
         self.view_frame.grid_rowconfigure(0, weight=1)
         self.view_frame.grid_columnconfigure(0, weight=1)
 
-        placeholder = ctk.CTkLabel(self.view_frame, text="(Platz für Plot und andere Inhalte)", font=("Arial", 16))
-        placeholder.place(relx=0.5, rely=0.5, anchor="center")
+        #canvas für den Plot erstellen
+        self.fig = Figure(figsize=(6, 4), dpi=100)
+        self.ax = self.fig.add_subplot(111)
+        self.ax.set_title("Simulation")
+        self.ax.set_xlabel("Zeit")
+        self.ax.set_ylabel("Wert")
+        self.ax.grid(True)
+
+        self.canvas = FigureCanvasTkAgg(self.fig, master=self.view_frame)
+        self.canvas.get_tk_widget().grid(row=0, column=0, sticky="nsew", padx=10, pady=10)
+
+        # placeholder unkommentieren wenn leer
+        #placeholder = ctk.CTkLabel(self.view_frame, text="(Platz für Plot und andere Inhalte)", font=("Arial", 16))
+        #placeholder.place(relx=0.5, rely=0.5, anchor="center")
 
     
     # STATUSBAR
@@ -85,4 +132,7 @@ class BaseGUI(ctk.CTk):
         self.status.set("Dateien öffnen... (noch nicht implementiert)")
 
     def on_info(self):
-        self.status.set("Info: GUI rennt.")
+        self.status.set("Info: GUI rennt ganz schnelle.")
+
+
+
