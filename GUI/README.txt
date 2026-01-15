@@ -24,7 +24,7 @@ Also:
 
 2. benötigte libraries installieren (pip install ...): 
 
-pillow 
+pillow
 customtkinter
 matplotlib
 fmpy
