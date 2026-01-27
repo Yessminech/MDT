@@ -18,12 +18,24 @@ TODO (David):
 -zweite y-achse? [done] by david
 -mehrere outputs auf einer y-achse [done] by david
 -zweite y-achse sperren wenn y1 nicht benutzt [done] by david
--tabs?
+
+-erstellen eines weiteren Tabs für den passenden Schaltplan der fmu [done] by Christoph
+-hinzufügen einer Auswahlmöglichkeit der anzuzeigenden Variabeln 
+-Voreinstellbare Anzeigevariabeln speichern können
+-Umgang mit Fehlerhaften fmu Dateien
+-Sinnvolle Ausgabe von Fehlermeldungen
+
 """
 
 import customtkinter as ctk
 from tkinter import filedialog
 from fmpy import read_model_description, simulate_fmu
+from PIL import Image
+import logging
+import platform
+from fmpy import extract
+from fmpy.model_description import ModelDescription
+from fmpy.fmi1 import FMICallException
 import os
 
 import matplotlib
@@ -34,6 +46,7 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
 ctk.set_appearance_mode("dark")   # optionen: light, system, dark
 ctk.set_default_color_theme("green")  # optionen: dark-blue, green, etc.
+logging.getLogger("fmpy").setLevel(logging.ERROR) # Unterdrückt verwirrende fmpy Konsolenmeldungen
 
 
 class BaseGUI(ctk.CTk):
@@ -51,18 +64,21 @@ class BaseGUI(ctk.CTk):
         #schnellauswahl für vorausgewählte FMUs
         self.quick_fmus = {
             "WienBruecke": os.path.join("FMUs", "WienBruecke.fmu"),
-            "Leistungsmessung": os.path.join("FMUs", "Leistungsmessung.fmu")
+            "Leistungsmessung": os.path.join("FMUs", "Leistungsmessung.fmu"),
+            "test": os.path.join("FMUs", "TempmessungPrinzip.fmu")
         }
 
         # GUI Komponenten erstellen
         self.create_topbar()
         self.create_left_panel()
-        self.create_main_view()
+        self.create_tabs()
         self.create_statusbar()
 
         self.fmu_path = None  #Pfad zur geladenen FMU
         self.last_result = None  #Simulationsergebnisse
         self.model_description = None
+        
+        self.default_entry_border = ctk.ThemeManager.theme["CTkEntry"]["border_color"]  #standart Borderfarbe
 
         self.ax2 = None #zweite y-Achse
 
@@ -169,15 +185,27 @@ class BaseGUI(ctk.CTk):
 
 
     # HAUPTANSICHT (Plot/Simulation)
+    def create_tabs(self):
+        self.tabs = ctk.CTkTabview(self)
+        self.tabs.grid(row=1, column=1, sticky="nsew", padx=10, pady=10)
+
+        # Tabs anlegen
+        self.sim_tab = self.tabs.add("Simulation")
+        self.image_tab = self.tabs.add("FMU Ansicht")
+
+        # Grid config
+        self.sim_tab.grid_rowconfigure(0, weight=1)
+        self.sim_tab.grid_columnconfigure(0, weight=1)
+
+        self.image_tab.grid_rowconfigure(0, weight=1)
+        self.image_tab.grid_columnconfigure(0, weight=1)
+
+        # Inhalte erzeugen
+        self.create_main_view()
+        self.create_image_view()
+
     
     def create_main_view(self):
-        self.view_frame = ctk.CTkFrame(self, corner_radius=10)
-        self.view_frame.grid(row=1, column=1, sticky="nsew", padx=10, pady=10)
-
-        self.view_frame.grid_rowconfigure(0, weight=1)
-        self.view_frame.grid_columnconfigure(0, weight=1)
-
-        #canvas für den Plot erstellen
         self.fig = Figure(figsize=(6, 4), dpi=100)
         self.ax = self.fig.add_subplot(111)
         self.ax.set_title("Simulation")
@@ -185,8 +213,41 @@ class BaseGUI(ctk.CTk):
         self.ax.set_ylabel("Wert")
         self.ax.grid(True)
 
-        self.canvas = FigureCanvasTkAgg(self.fig, master=self.view_frame)
+        self.canvas = FigureCanvasTkAgg(self.fig, master=self.sim_tab)
         self.canvas.get_tk_widget().grid(row=0, column=0, sticky="nsew", padx=10, pady=10)
+
+
+    def create_image_view(self):
+        self.image_label = ctk.CTkLabel(
+            self.image_tab,
+            text="Keine FMU geladen",
+            anchor="center"
+        )
+        self.image_label.image = None
+        self.image_label.grid(row=0, column=0, sticky="nsew", padx=10, pady=10)
+
+    def load_fmu_image(self, fmu_path):
+        #Löschen des vorherigen Bildes
+        self.image_label.configure(image=None, text="Lade Bild...")
+        self.image_label.image = None
+
+        base, _ = os.path.splitext(fmu_path)
+        img_path = base + ".png"
+
+        if not os.path.exists(img_path):
+            self.image_label.configure(text="Kein PNG zur FMU gefunden")
+            self.image_label.configure(image=None)
+            return
+
+        img = Image.open(img_path)
+        img = img.resize((700, 500), Image.LANCZOS)
+
+        self.fmu_image = ctk.CTkImage(light_image=img, dark_image=img, size=(700, 500))
+        self.image_label.image = self.fmu_image   # Referenz halten
+        self.image_label.configure(text="", image=self.fmu_image)
+
+
+
 
     
     # STATUSBAR
@@ -222,6 +283,7 @@ class BaseGUI(ctk.CTk):
                 #value_txt = str(var.start[:7]) 
                 entry.insert(0, str(var.start) if var.start is not None else "0")
 
+                entry.configure(border_width=1, border_color=self.default_entry_border)
 
                 self.parameter_entries[var.name] = entry
 
@@ -295,7 +357,31 @@ class BaseGUI(ctk.CTk):
             return 0
 
         #simulieren
-        result = simulate_fmu(self.fmu_path, start_values=start_values, stop_time=stop_time)
+        self.reset_parameter_marking()
+
+        invalid_params = self.validate_parameters()
+        if invalid_params:
+            for p in invalid_params:
+                self.mark_parameter_invalid(p)
+            self.status.set("Ungültige Parameter markiert.")
+            return
+        
+        try:
+            result = simulate_fmu(
+                self.fmu_path,
+                start_values=start_values,
+                stop_time=stop_time
+            )
+        except FMICallException as e:
+            self.status.set("FMU-Simulationsfehler.")
+            print("FMU-Fehler:", e)
+            return
+        except Exception as e:
+            self.status.set("Allgemeiner Simulationsfehler.")
+            print("Fehler:", e)
+            return
+
+
 
         self.last_result = result
 
@@ -353,16 +439,25 @@ class BaseGUI(ctk.CTk):
 
             self.load_fmu(self.quick_fmus[answer])
  
-    
-    def load_fmu(self, path): # neue eigene lade-funktion
+    #lade-funktion für fmus
+    def load_fmu(self, path): 
         self.fmu_path = path
         self.model_description = read_model_description(self.fmu_path)
+
+        issues = self.check_fmu_compatibility(path)
+
+        if issues:
+            self.status.set("FMU inkompatibel – siehe Konsole")
+            for issue in issues:
+                print("FMU-Warnung:", issue)
 
         #outputs aus FMU lesen für dropdowns
         self.outputs = [var.name for var in self.model_description.modelVariables if var.causality == "output"]
         self.update_plot_dropdowns()
         self.create_parameter_fields()
         self.build_multi_checkboxes()
+
+        self.load_fmu_image(path)
 
         #statusupdate
         self.status.set(f"Geladene FMU: {self.fmu_path}")
@@ -395,4 +490,71 @@ class BaseGUI(ctk.CTk):
             chkbx.pack(anchor="w", padx=5, pady=2)
 
             self.multi_outs[output] = var
-        
+    
+    #Überprüfung der fmu Binary dür windows Linux usw..
+    def check_fmu_compatibility(self, fmu_path):
+        issues = []
+
+        # OS prüfen
+        system = platform.system().lower()  # windows / linux / darwin
+        unzipdir = extract(fmu_path)
+
+        binaries_path = os.path.join(unzipdir, "binaries")
+        if not os.path.exists(binaries_path):
+            issues.append("FMU enthält keine Binaries.")
+            return issues
+
+        available_platforms = os.listdir(binaries_path)
+
+        platform_ok = False
+        for p in available_platforms:
+            if system in p.lower():
+                platform_ok = True
+
+        if not platform_ok:
+            issues.append(
+                f"Keine passenden Binaries für {system}. Gefunden: {available_platforms}"
+            )
+
+        # FMI-Typ prüfen
+        md = self.model_description
+        if not md.coSimulation:
+            issues.append("FMU unterstützt keine Co-Simulation.")
+        if md.modelExchange:
+            issues.append("FMU ist Model-Exchange (eingeschränkt unterstützt).")
+
+        return issues
+    
+    #rote Makierung von Fehlerhaften Eingabewerten
+    def mark_parameter_invalid(self, name):
+        entry = self.parameter_entries.get(name)
+        if entry:
+            entry.configure(border_color="red")
+    
+    #Zurücksetzen der Farbe des Eingabewertes
+    def reset_parameter_marking(self):
+        for entry in self.parameter_entries.values():
+            entry.configure(border_color=self.default_entry_border)
+
+
+    def validate_parameters(self):
+        invalid = []
+
+        for var in self.model_description.modelVariables:
+            if var.causality == "parameter" and var.name in self.parameter_entries:
+                entry = self.parameter_entries[var.name]
+                try:
+                    value = float(entry.get())
+                except ValueError:
+                    invalid.append(var.name)
+                    continue
+
+                # optionale FMU-Grenzen
+                if var.min is not None and value < var.min:
+                    invalid.append(var.name)
+                if var.max is not None and value > var.max:
+                    invalid.append(var.name)
+
+        return invalid
+
+
