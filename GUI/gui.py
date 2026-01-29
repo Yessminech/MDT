@@ -65,7 +65,8 @@ class BaseGUI(ctk.CTk):
         self.quick_fmus = {
             "WienBruecke": os.path.join("FMUs", "WienBruecke.fmu"),
             "Leistungsmessung": os.path.join("FMUs", "Leistungsmessung.fmu"),
-            "test": os.path.join("FMUs", "TempmessungPrinzip.fmu")
+            "Ideale_ADU": os.path.join("FMUs", "ADU_IDEAL.fmu"),
+            "nicht_Ideale_ADU": os.path.join("FMUs", "ADU_Non_Ideal.fmu")
         }
 
         # GUI Komponenten erstellen
@@ -218,33 +219,85 @@ class BaseGUI(ctk.CTk):
 
 
     def create_image_view(self):
-        self.image_label = ctk.CTkLabel(
+        #weißer Hintergund
+        self.image_container = ctk.CTkFrame(
             self.image_tab,
+            fg_color="white"
+        )
+        self.image_container.grid(row=0, column=0, sticky="nsew", padx=10, pady=10)
+
+        self.image_container.grid_rowconfigure(0, weight=1)
+        self.image_container.grid_columnconfigure(0, weight=1)
+
+        self.image_label = ctk.CTkLabel(
+            self.image_container,
             text="Keine FMU geladen",
-            anchor="center"
+            anchor="center",
+            text_color="black"
         )
         self.image_label.image = None
-        self.image_label.grid(row=0, column=0, sticky="nsew", padx=10, pady=10)
+        self.image_label.grid(row=0, column=0, sticky="nsew")
+
 
     def load_fmu_image(self, fmu_path):
-        #Löschen des vorherigen Bildes
-        self.image_label.configure(image=None, text="Lade Bild...")
+        self.image_label.configure(image="", text="Lade Bild...")
         self.image_label.image = None
+
+        if hasattr(self, "fmu_image"):#Löscht alte Bildreferenz
+            del self.fmu_image
+
 
         base, _ = os.path.splitext(fmu_path)
         img_path = base + ".png"
 
         if not os.path.exists(img_path):
             self.image_label.configure(text="Kein PNG zur FMU gefunden")
-            self.image_label.configure(image=None)
             return
 
+        # Originalbild laden
         img = Image.open(img_path)
-        img = img.resize((700, 500), Image.LANCZOS)
 
-        self.fmu_image = ctk.CTkImage(light_image=img, dark_image=img, size=(700, 500))
-        self.image_label.image = self.fmu_image   # Referenz halten
+        # Layout aktualisieren
+        self.update_idletasks()
+
+        tab_w = self.image_container.winfo_width()
+        tab_h = self.image_container.winfo_height()
+
+        # Fallback
+        if tab_w <= 1 or tab_h <= 1:
+            tab_w, tab_h = 800, 600
+
+        max_w = int(tab_w * 0.8)
+        max_h = int(tab_h * 0.8)
+
+        # Standard: Originalgröße
+        new_w, new_h = img.width, img.height
+
+        # 🔑 NUR skalieren, wenn Bild zu groß ist
+        if img.width > max_w or img.height > max_h:
+
+            img_ratio = img.width / img.height
+            container_ratio = max_w / max_h
+
+            if img_ratio > container_ratio:
+                new_w = max_w
+                new_h = int(max_w / img_ratio)
+            else:
+                new_h = max_h
+                new_w = int(max_h * img_ratio)
+
+            img = img.resize((new_w, new_h), Image.LANCZOS)
+
+        self.fmu_image = ctk.CTkImage(
+            light_image=img,
+            dark_image=img,
+            size=(new_w, new_h)
+        )
+
         self.image_label.configure(text="", image=self.fmu_image)
+        self.image_label.image = self.fmu_image  # Referenz halten
+
+
 
 
 
@@ -498,16 +551,17 @@ class BaseGUI(ctk.CTk):
         # OS prüfen
         system = platform.system().lower()  # windows / linux / darwin
         unzipdir = extract(fmu_path)
-
+        print(system)
         binaries_path = os.path.join(unzipdir, "binaries")
         if not os.path.exists(binaries_path):
             issues.append("FMU enthält keine Binaries.")
             return issues
 
         available_platforms = os.listdir(binaries_path)
-
+        print(available_platforms)
         platform_ok = False
         for p in available_platforms:
+            print(p.lower())
             if system in p.lower():
                 platform_ok = True
 
