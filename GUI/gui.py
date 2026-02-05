@@ -53,6 +53,16 @@ class BaseGUI(ctk.CTk):
     def __init__(self):
         super().__init__()
 
+        # Betriebssystem merken
+        raw_system = platform.system().lower()
+
+        if raw_system == "windows":
+            self.os_tag = "win"
+        elif raw_system == "linux":
+            self.os_tag = "linux"
+        else:
+            self.os_tag = raw_system   
+
         # Fenster config 
         self.title("GEM Simulationen")
         self.geometry("1000x700")
@@ -63,10 +73,10 @@ class BaseGUI(ctk.CTk):
         
         #schnellauswahl für vorausgewählte FMUs
         self.quick_fmus = {
-            "WienBruecke": os.path.join("FMUs", "WienBruecke.fmu"),
-            "Leistungsmessung": os.path.join("FMUs", "Leistungsmessung.fmu"),
-            "Ideale_ADU": os.path.join("FMUs", "ADU_IDEAL.fmu"),
-            "nicht_Ideale_ADU": os.path.join("FMUs", "ADU_Non_Ideal.fmu")
+            "WienBruecke": "WienBruecke",
+            "Leistungsmessung": "Leistungsmessung",
+            "Ideale_ADU": "ADU_IDEAL",
+            "nicht_Ideale_ADU": "ADU_Non_Ideal"
         }
 
         # GUI Komponenten erstellen
@@ -239,8 +249,13 @@ class BaseGUI(ctk.CTk):
         self.image_label.grid(row=0, column=0, sticky="nsew")
 
 
+    def get_os_specific_fmu(self, base_name):
+        filename = f"{base_name}_{self.os_tag}.fmu"
+        return os.path.join("FMUs", filename)
+
+
     def load_fmu_image(self, fmu_path):
-        self.image_label.configure(image="", text="Lade Bild...")
+        self.image_label.configure(text="Lade Bild...")
         self.image_label.image = None
 
         if hasattr(self, "fmu_image"):#Löscht alte Bildreferenz
@@ -490,7 +505,15 @@ class BaseGUI(ctk.CTk):
     def on_quick_select(self, answer): 
         if answer in self.quick_fmus:
 
-            self.load_fmu(self.quick_fmus[answer])
+            base_name = self.quick_fmus[answer]
+            fmu_path = self.get_os_specific_fmu(base_name)
+
+            if not os.path.exists(fmu_path):
+                self.status.set(f"FMU nicht gefunden: {fmu_path}")
+                return
+
+            self.load_fmu(fmu_path)
+
  
     #lade-funktion für fmus
     def load_fmu(self, path): 
@@ -549,19 +572,27 @@ class BaseGUI(ctk.CTk):
         issues = []
 
         # OS prüfen
-        system = platform.system().lower()  # windows / linux / darwin
+        raw_system = platform.system().lower()
+
+        platform_map = {
+            "windows": "win",
+            "linux": "linux",
+            "darwin": "darwin"
+        }
+        system = platform_map.get(raw_system, raw_system)# windows / linux / darwin
+
+        
         unzipdir = extract(fmu_path)
-        print(system)
         binaries_path = os.path.join(unzipdir, "binaries")
         if not os.path.exists(binaries_path):
             issues.append("FMU enthält keine Binaries.")
             return issues
 
         available_platforms = os.listdir(binaries_path)
-        print(available_platforms)
+        #print(available_platforms)
         platform_ok = False
         for p in available_platforms:
-            print(p.lower())
+            #print(p.lower())
             if system in p.lower():
                 platform_ok = True
 
