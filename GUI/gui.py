@@ -92,6 +92,34 @@ class BaseGUI(ctk.CTk):
         self.default_entry_border = ctk.ThemeManager.theme["CTkEntry"]["border_color"]  #standart Borderfarbe
 
         self.ax2 = None #zweite y-Achse
+######################
+    def is_plottable(self, var):
+        #nur Real
+        if getattr(var, "type", None) != "Real":
+            return False
+
+        name = var.name
+        causality = getattr(var, "causality", None)
+        variability = getattr(var, "variability", None)
+        unit = getattr(var, "unit", None)
+
+        #harte Ausschlüsse
+        if name.startswith("der("):
+            return False
+        if variability == "parameter":
+            return False
+
+        #Einheiten
+        if name.endswith((".v", ".i", ".y", ".u")):
+            return True
+        if unit in ("V", "A"):
+            return True
+
+        #übrige (okaye )Kandidaten
+        if causality in ("output", "calculatedParameter", None):
+            return True
+
+        return False
 
 
 
@@ -288,7 +316,7 @@ class BaseGUI(ctk.CTk):
         # Standard: Originalgröße
         new_w, new_h = img.width, img.height
 
-        # 🔑 NUR skalieren, wenn Bild zu groß ist
+        # NUR skalieren, wenn Bild zu groß ist
         if img.width > max_w or img.height > max_h:
 
             img_ratio = img.width / img.height
@@ -394,6 +422,28 @@ class BaseGUI(ctk.CTk):
 
 
 
+    #übernahme von standardwerten aus FMU für start_time, stop_time, step_size
+    def get_time_setting(self, user_stop_time: float):
+        md = self.model_description
+
+        start_time = 0.0
+        stop_time = user_stop_time
+        step_size = None
+
+        desc = getattr(md, "defaultExperiment", None)
+        if desc is not None:
+            if getattr(desc, "startTime", None) is not None:
+                start_time = float(desc.startTime)
+            
+
+        if step_size is None:
+            step_size = max(stop_time / 1000.0, 1e-9)
+
+        return start_time, stop_time, step_size
+
+
+
+
 
     #info button
     def on_info(self):
@@ -419,10 +469,17 @@ class BaseGUI(ctk.CTk):
 
         #stop time checekn
         try:
-            stop_time = float(self.stop_time_entry.get())
+            user_stop_time = float(self.stop_time_entry.get())
+            if user_stop_time <= 0:
+                raise ValueError
         except Exception:
             self.status.set("Ungueltiger Wert für stop time.")
             return 0
+        
+        #start_time, stop_time, step_size holen
+        start_time, stop_time, step_size = self.get_time_setting(user_stop_time)
+
+    
 
         #simulieren
         self.reset_parameter_marking()
@@ -434,12 +491,26 @@ class BaseGUI(ctk.CTk):
             self.status.set("Ungültige Parameter markiert.")
             return
         
+        #cosim oder exchange?
+        #fmi_type = "CoSimulation" if self.model_description.coSimulation else "ModelExchange"
+
+        #fmu-typ wählen (diesmal das es klappt)
+        md = self.model_description
+        if md.modelExchange:
+            fmi_type = "ModelExchange"
+        else: 
+            fmi_type = "CoSimulation"
+        
         try:
             result = simulate_fmu(
                 self.fmu_path,
                 start_values=start_values,
-                stop_time=stop_time
+                stop_time=stop_time,
+                start_time = start_time,
+                fmi_type = fmi_type
             )
+
+
         except FMICallException as e:
             self.status.set("FMU-Simulationsfehler.")
             print("FMU-Fehler:", e)
@@ -448,6 +519,10 @@ class BaseGUI(ctk.CTk):
             self.status.set("Allgemeiner Simulationsfehler.")
             print("Fehler:", e)
             return
+        
+        
+        
+
 
 
 
@@ -528,7 +603,16 @@ class BaseGUI(ctk.CTk):
                 print("FMU-Warnung:", issue)
 
         #outputs aus FMU lesen für dropdowns
-        self.outputs = [var.name for var in self.model_description.modelVariables if var.causality == "output"]
+        self.outputs = [var.name for var in self.model_description.modelVariables if var.causality == "output" ]
+
+        """
+
+        self.outputs = [
+            var.name
+            for var in self.model_description.modelVariables
+            if self.is_plottable(var)
+        ]
+        """
         self.update_plot_dropdowns()
         self.create_parameter_fields()
         self.build_multi_checkboxes()
@@ -601,13 +685,10 @@ class BaseGUI(ctk.CTk):
                 f"Keine passenden Binaries für {system}. Gefunden: {available_platforms}"
             )
 
-        # FMI-Typ prüfen
+        # FMI-Typ prüfen (angepasst)
         md = self.model_description
         if not md.coSimulation:
-            issues.append("FMU unterstützt keine Co-Simulation.")
-        if md.modelExchange:
-            issues.append("FMU ist Model-Exchange (eingeschränkt unterstützt).")
-
+            issues.append("FMU unterstützt keine Co-Simulation (nur ModelExchange).")
         return issues
     
     #rote Makierung von Fehlerhaften Eingabewerten
@@ -635,11 +716,12 @@ class BaseGUI(ctk.CTk):
                     continue
 
                 # optionale FMU-Grenzen
-                if var.min is not None and value < var.min:
+                if var.min is not None and value < float(var.min):
                     invalid.append(var.name)
-                if var.max is not None and value > var.max:
+                if var.max is not None and value > float(var.max):
                     invalid.append(var.name)
 
         return invalid
+
 
 
