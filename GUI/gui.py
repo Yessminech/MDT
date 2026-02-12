@@ -19,6 +19,9 @@ TODO (David):
 -mehrere outputs auf einer y-achse [done] by david
 -zweite y-achse sperren wenn y1 nicht benutzt [done] by david
 
+-checkbox für alle Signale einfügen [done] by david
+-modelExchange statt coSimulation standardmässig nutzen [done] by david
+
 -erstellen eines weiteren Tabs für den passenden Schaltplan der fmu [done] by Christoph
 -hinzufügen einer Auswahlmöglichkeit der anzuzeigenden Variabeln 
 -Voreinstellbare Anzeigevariabeln speichern können
@@ -184,6 +187,11 @@ class BaseGUI(ctk.CTk):
 
         ctk.CTkLabel(plot_frame, text="Plot Einstellungen").pack(pady=(5,2), anchor = "w", padx=5)
 
+        #checkbox zum zeigen von allen parametern
+        self.show_all_var = ctk.BooleanVar(value = False)
+        self.show_all_checkbox = ctk.CTkCheckBox(plot_frame, text = "alle Signale ON/OFF", variable = self.show_all_var, command = self.update_plot_dropdowns)
+        self.show_all_checkbox.pack(anchor = "w", padx = 5, pady = (0, 4))
+
         #x-Achse dropdown
         x_axis = ctk.CTkFrame(plot_frame)
         x_axis.pack(fill="x", pady=(2,2), padx=5)
@@ -215,6 +223,10 @@ class BaseGUI(ctk.CTk):
 
         #änderung y-achse checken
         self.y_var.trace_add("write", self.y_change)
+
+
+        
+
 
         #boxen für weitere outputs
         ctk.CTkLabel(plot_frame, text="weitere Outputs plotten").pack(anchor = "w", padx=5, pady=(5,2))
@@ -398,32 +410,43 @@ class BaseGUI(ctk.CTk):
        
 
     def update_plot_dropdowns(self):
+
+        if getattr(self, "show_all_var", None) is not None and self.show_all_var.get():
+            signals = getattr(self, "all_plottable", [])
+        else:
+            signals = getattr(self, "outputs", [])
+        
+
+
+
         #x-achse mit time als default
-        x_values = ["time"] + (self.outputs)
+        x_values = ["time"] + signals
         self.x_dropdown.configure(values=x_values)
-        self.x_var.set("time")
+        if self.x_var.get() not in x_values:
+            self.x_var.set("time")
 
         #y-achse nur outputs
-        if self.outputs:
-            self.y_dropdown.configure(values=["none"] + self.outputs)
-            self.y_var.set(self.outputs[0])
+
+        if signals:
+            self.y_dropdown.configure(values=["none"] + signals)
+            if self.y_var.get() not in (["none"] + signals):
+                self.y_var.set(signals[0])
         else:
-            y_values = []
-            self.y_dropdown.configure(values=y_values)
-            self.y_var.set(y_values)
+            self.y_dropdown.configure(values = "none")
+            self.y_var.set("none")
 
         #y2-achse nur outputs
-        if self.outputs:
-            self.y2_dropdown.configure(values=["none"] + self.outputs)
-            self.y2_var.set("none")  #defaulkt wert
+        if signals:
+            self.y2_dropdown.configure(values=["none"] + signals)
+            if self.y2_var.get() not in (["none"] + signals):
+                self.y2_var.set(signals[0])
         else:
-            y2_values = []
-            self.y2_dropdown.configure(values=y2_values)
-            self.y2_var.set(y2_values)
+            self.y2_dropdown.configure(values = "none")
+            self.y2_var.set("none")
 
 
 
-    #übernahme von standardwerten aus FMU für start_time, stop_time, step_size
+    #übernahme von standardwerten aus FMU für start_time, stop_time, step_size ###################### GESTRICHEN - bleibt für potenzielle Fehlerbehandlung
     def get_time_setting(self, user_stop_time: float):
         md = self.model_description
 
@@ -446,7 +469,7 @@ class BaseGUI(ctk.CTk):
 
 
 
-    #info button
+    #info button 
     def on_info(self):
         self.status.set("Info: GUI rennt ganz schnelle.")
 
@@ -606,14 +629,9 @@ class BaseGUI(ctk.CTk):
         #outputs aus FMU lesen für dropdowns
         self.outputs = [var.name for var in self.model_description.modelVariables if var.causality == "output" ]
 
-        """
+        self.all_plottable = [var.name for var in self.model_description.modelVariables if self.is_plottable(var)]
 
-        self.outputs = [
-            var.name
-            for var in self.model_description.modelVariables
-            if self.is_plottable(var)
-        ]
-        """
+
         self.update_plot_dropdowns()
         self.create_parameter_fields()
         self.build_multi_checkboxes()
@@ -689,7 +707,7 @@ class BaseGUI(ctk.CTk):
         # FMI-Typ prüfen (angepasst)
         md = self.model_description
         if not md.coSimulation:
-            issues.append("FMU unterstützt keine Co-Simulation (nur ModelExchange).")
+            issues.append("FMU unterstützt keine ModelExchange (nur CoSimulation).")
         return issues
     
     #rote Makierung von Fehlerhaften Eingabewerten
@@ -723,6 +741,4 @@ class BaseGUI(ctk.CTk):
                     invalid.append(var.name)
 
         return invalid
-
-
-
+    
