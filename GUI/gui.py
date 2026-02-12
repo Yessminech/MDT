@@ -21,9 +21,10 @@ TODO (David):
 
 -checkbox für alle Signale einfügen [done] by david
 -modelExchange statt coSimulation standardmässig nutzen [done] by david
+-errorfenster hinzugefügt [done] by david
 
 -erstellen eines weiteren Tabs für den passenden Schaltplan der fmu [done] by Christoph
--hinzufügen einer Auswahlmöglichkeit der anzuzeigenden Variabeln 
+-hinzufügen einer Auswahlmöglichkeit der anzuzeigenden Variabeln
 -Voreinstellbare Anzeigevariabeln speichern können
 -Umgang mit Fehlerhaften fmu Dateien
 -Sinnvolle Ausgabe von Fehlermeldungen
@@ -32,6 +33,7 @@ TODO (David):
 
 import customtkinter as ctk
 from tkinter import filedialog
+from tkinter import messagebox
 from fmpy import read_model_description, simulate_fmu
 from PIL import Image
 import logging
@@ -488,7 +490,8 @@ class BaseGUI(ctk.CTk):
                 val = float(entry.get())
                 start_values[name] = val
             except ValueError:
-                self.status.set(f"Ungueltiger Wert für Parameter {name}.")
+                self.show_error(f"Ungueltiger Wert für Parameter {name}.")
+               # self.status.set(f"Ungueltiger Wert für Parameter {name}.")
                 return 0
 
         #stop time checekn
@@ -497,7 +500,7 @@ class BaseGUI(ctk.CTk):
             if user_stop_time <= 0:
                 raise ValueError
         except Exception:
-            self.status.set("Ungueltiger Wert für stop time.")
+            self.show_error("Ungueltiger Wert für stop time.")
             return 0
         
         #start_time, stop_time, step_size holen
@@ -536,11 +539,11 @@ class BaseGUI(ctk.CTk):
 
 
         except FMICallException as e:
-            self.status.set("FMU-Simulationsfehler.")
+            self.show_error("FMU-Simulationsfehler", str(e))
             print("FMU-Fehler:", e)
             return
         except Exception as e:
-            self.status.set("Allgemeiner Simulationsfehler.")
+            self.show_error("Allgemeiner Simulationsfehler", str(e))
             print("Fehler:", e)
             return
         
@@ -742,3 +745,6 @@ class BaseGUI(ctk.CTk):
 
         return invalid
     
+    def show_error(self, title: str, message: str):
+        self.status.set(message)
+        messagebox.showerror(title, message)
