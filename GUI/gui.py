@@ -71,11 +71,12 @@ class BaseGUI(ctk.CTk):
         self.grid_columnconfigure(1, weight=1)
         self.grid_rowconfigure(1, weight=1)
         
-        #schnellauswahl für vorausgewählte FMUs
+        #schnellauswahl für vorausgewählte FMUs (Name : Dateiname)
         self.quick_fmus = {
             "WienBruecke": "WienBruecke",
             "Leistungsmessung": "Leistungsmessung",
             "Ideale_ADU": "ADU_IDEAL",
+            "(Fixed)Ideale_ADU": "(FIXED)ADU_IDEAL",
             "nicht_Ideale_ADU": "ADU_Non_Ideal"
         }
 
@@ -92,7 +93,7 @@ class BaseGUI(ctk.CTk):
         self.default_entry_border = ctk.ThemeManager.theme["CTkEntry"]["border_color"]  #standart Borderfarbe
 
         self.ax2 = None #zweite y-Achse
-######################
+        
     def is_plottable(self, var):
         #nur Real
         if getattr(var, "type", None) != "Real":
