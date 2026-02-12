@@ -765,11 +765,18 @@ package MT
         Placement(visible = true, transformation(origin = {-100, 0}, extent = {{-10, -10}, {10, 10}}, rotation = 0), iconTransformation(origin = {-100, 0}, extent = {{-10, -10}, {10, 10}}, rotation = 0)));
       Modelica.Electrical.Analog.Interfaces.NegativePin PinM annotation(
         Placement(visible = true, transformation(origin = {100, 0}, extent = {{-10, -10}, {10, 10}}, rotation = 0), iconTransformation(origin = {100, 0}, extent = {{-10, -10}, {10, 10}}, rotation = 0)));
+      Modelica.Blocks.Interfaces.RealOutput R_out(unit="Ohm")
+        "PT100 resistance"
+        annotation(Placement(visible=true, transformation(origin={0,100},
+          extent={{-10,-10},{10,10}}), iconTransformation(origin={0,100},
+          extent={{-10,-10},{10,10}})));
     equation
       R = R0*(1 + a*(T_heatPort - T0) + b*(T_heatPort - T0)^2);
       PinP.v - PinM.v = R*PinP.i;
       LossPower = (PinP.v - PinM.v)*PinP.i;
       PinP.i + PinM.i = 0;
+      R_out = R;
+    
       annotation(
         Diagram(coordinateSystem(extent = {{-200, -100}, {200, 100}}, initialScale = 0.05)),
         Icon(graphics = {Text(origin = {16, 14}, lineColor = {0, 0, 255}, extent = {{-56, 66}, {12, 36}}, textString = "%name"), Rectangle(origin = {10, 0}, lineThickness = 1, extent = {{-80, 40}, {60, -40}}), Line(origin = {-80, 0}, points = {{-10.5, 0}, {9.5, 0}, {-0.5, 0}}, thickness = 1), Line(origin = {80, 0}, points = {{-10, 0}, {10, 0}}, thickness = 1), Text(origin = {-4, 18}, extent = {{-46, 2}, {52, -36}}, textString = "PT100")}, coordinateSystem(initialScale = 0.1)),
