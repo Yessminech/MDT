@@ -56,7 +56,7 @@ class BaseGUI(ctk.CTk):
     def __init__(self):
         super().__init__()
 
-        # Betriebssystem merken
+        #aktuelles Betriebssystem bestimmen (wird später für passende FMUs benötigt)
         raw_system = platform.system().lower()
 
         if raw_system == "windows":
@@ -66,15 +66,17 @@ class BaseGUI(ctk.CTk):
         else:
             self.os_tag = raw_system   
 
-        # Fenster config 
+        #grundlegende Fenstereinstellungen
         self.title("GEM Simulationen")
         self.geometry("1000x700")
         self.minsize(900, 500)
 
+        #Gridlayout: rechter Bereich wächst mit dem Fenster
         self.grid_columnconfigure(1, weight=1)
         self.grid_rowconfigure(1, weight=1)
         
-        #schnellauswahl für vorausgewählte FMUs (Name : Dateiname)
+        #Schnellauswahl vordefinierter FMUs
+        #Anzeigename im Menü : Name der FMU-Datei
         self.quick_fmus = {
             "MessBruecke": "Messbruecke",
             "Leistungsmessung Dimmer": "Leistungsmessung_Dimmer",
@@ -82,22 +84,25 @@ class BaseGUI(ctk.CTk):
             "nicht_Ideale_ADU": "ADU_Non_Ideal"
         }
 
-        # GUI Komponenten erstellen
+        #GUI Komponenten erstellen
         self.create_topbar()
         self.create_left_panel()
         self.create_tabs()
         self.create_statusbar()
 
+        #interne Variablen für aktuell geladene FMU und Simulation
         self.fmu_path = None  #Pfad zur geladenen FMU
         self.last_result = None  #Simulationsergebnisse
         self.model_description = None
         
+        #Standardfarbe der Eingabefelder speichern
         self.default_entry_border = ctk.ThemeManager.theme["CTkEntry"]["border_color"]  #standart Borderfarbe
 
+        #zweite y-Achse (falls benötigt)
         self.ax2 = None #zweite y-Achse
         
     def is_plottable(self, var):
-        #nur Real
+        #nur Real-Variablen sind sinnvoll plottbar
         if getattr(var, "type", None) != "Real":
             return False
 
@@ -106,19 +111,19 @@ class BaseGUI(ctk.CTk):
         variability = getattr(var, "variability", None)
         unit = getattr(var, "unit", None)
 
-        #harte Ausschlüsse
+        #Ableitungen und Parameter sollen nicht geplottet werden
         if name.startswith("der("):
             return False
         if variability == "parameter":
             return False
 
-        #Einheiten
+        #typische elektrische Größen bevorzugen
         if name.endswith((".v", ".i", ".y", ".u")):
             return True
         if unit in ("V", "A"):
             return True
 
-        #übrige (okaye )Kandidaten
+        #Sonstige Outputs zulassen
         if causality in ("output", "calculatedParameter", None):
             return True
 
@@ -128,23 +133,23 @@ class BaseGUI(ctk.CTk):
 
 
     
-    # topbar aka Menüleiste
+    #Topbar aka Menüleiste
 
     def create_topbar(self):
+        #Obere Leiste für Menü und Schnellzugriffe
         self.topbar = ctk.CTkFrame(self, height=50)
         self.topbar.grid(row=0, column=0, columnspan=2, sticky="ew")
         self.topbar.pack_propagate(False)
 
-
-
-        # Buttons
+        #Button zum Laden einer beliebigen FMU
         btn_open = ctk.CTkButton(self.topbar, text="Öffnen...", width=120, command=self.on_open)
         btn_open.pack(side="right", padx=5, pady=2)
 
+        #Einfacher Info-Button
         btn_help = ctk.CTkButton(self.topbar, text="Info", width=70, command=self.on_info)
         btn_help.pack(side="right", padx=5, pady=2)
 
-        # schnellauswahl button
+        #Dropdown für vordefinierte FMUs
         self.quick_menu = ctk.CTkOptionMenu(self.topbar, values=["Beispiele"] + list(self.quick_fmus.keys()), command=self.on_quick_select)
         self.quick_menu.pack(side="left", padx=5, pady=2)
 
@@ -152,46 +157,49 @@ class BaseGUI(ctk.CTk):
     # LINKES PANEL (Parameter)
     
     def create_left_panel(self):
+        #Linker Bereich enthält Parameter und Plot-Einstellungen
         self.left_panel = ctk.CTkFrame(self, width=250, corner_radius=10)
         self.left_panel.grid(row=1, column=0, sticky="nsw", padx=10, pady=10)
 
         title = ctk.CTkLabel(self.left_panel, text="Parameter", font=("Arial", 18, "bold"))
         title.pack(pady=10)
 
-        # stop time voreinstellung
+        #Eingabe der Simulationsdauer
         stop_frame = ctk.CTkFrame(self.left_panel)
         stop_frame.pack(fill="x", pady=(0, 8), padx=5)
+
         stop_label = ctk.CTkLabel(stop_frame, text="Stop time (s):")
         stop_label.pack(side="left", padx=5)
+
         self.stop_time_entry = ctk.CTkEntry(stop_frame, width=80)
         self.stop_time_entry.pack(side="right", padx=5)
         self.stop_time_entry.insert(0, "1.0")
 
-        # dynamische Felder für Parameter.
+        #Dynamische Felder für Parameter.
 
         self.parameter_scroll = ctk.CTkScrollableFrame(self.left_panel, width=230, height=210)
         self.parameter_scroll.pack(pady=5, padx=5, fill="both", expand=True)
 
-        #"simulation dtarten"-button
+        #"simulation starten"-button
         
         self.btn_sim = ctk.CTkButton(self.left_panel, text="Sim starten", command=self.run_sim)
         self.btn_sim.pack(pady=10)
 
         self.parameter_entries = {}
 
-        # dropdown für achsen
+        #Dropdown für die Achsenauswahl
         plot_frame = ctk.CTkFrame(self.left_panel, height=250)
         plot_frame.pack(fill="x", pady=(0, 8), padx=5)
         plot_frame.pack_propagate(False)
 
         ctk.CTkLabel(plot_frame, text="Plot Einstellungen").pack(pady=(5,2), anchor = "w", padx=5)
 
-        #checkbox zum zeigen von allen parametern
+        #Checkbox zum zeigen von allen parametern
         self.show_all_var = ctk.BooleanVar(value = False)
         self.show_all_checkbox = ctk.CTkCheckBox(plot_frame, text = "alle Signale ON/OFF", variable = self.show_all_var, command = self.update_plot_dropdowns)
         self.show_all_checkbox.pack(anchor = "w", padx = 5, pady = (0, 4))
 
-        #x-Achse dropdown
+        #Dropdown für die x_Achse
         x_axis = ctk.CTkFrame(plot_frame)
         x_axis.pack(fill="x", pady=(2,2), padx=5)
         ctk.CTkLabel(x_axis, text="X-Achse:").pack(side="left", padx=5)
@@ -201,7 +209,7 @@ class BaseGUI(ctk.CTk):
         self.x_dropdown.pack(side="right", fill="x")
 
 
-        #y-Achse dropdown
+        #Dropdown für die y-Achse
         y_axis = ctk.CTkFrame(plot_frame)
         y_axis.pack(fill="x", pady=(2,2), padx=5)
         ctk.CTkLabel(y_axis, text="Y-Achse:").pack(side="left", padx=5)
@@ -211,7 +219,7 @@ class BaseGUI(ctk.CTk):
         self.y_dropdown.pack(side="right", fill="x")
 
 
-        #y-Achse 2 dropdown
+        #Dropdown für die 2. y-Achse
         y2_axis = ctk.CTkFrame(plot_frame)
         y2_axis.pack(fill="x", pady=(2,2), padx=5)
         ctk.CTkLabel(y2_axis, text="Y-Achse 2:").pack(side="left", padx=5)
@@ -227,7 +235,7 @@ class BaseGUI(ctk.CTk):
         
 
 
-        #boxen für weitere outputs
+        #Boxen für weitere outputs
         ctk.CTkLabel(plot_frame, text="weitere Outputs plotten").pack(anchor = "w", padx=5, pady=(5,2))
         self.multi_scroll = ctk.CTkScrollableFrame(plot_frame, height=80)
         self.multi_scroll.pack(fill="x", padx=5, pady=(0,5))
@@ -235,23 +243,23 @@ class BaseGUI(ctk.CTk):
         self.multi_outs = {}
 
 
-    # HAUPTANSICHT (Plot/Simulation)
+    #HAUPTANSICHT (Plot/Simulation)
     def create_tabs(self):
         self.tabs = ctk.CTkTabview(self)
         self.tabs.grid(row=1, column=1, sticky="nsew", padx=10, pady=10)
 
-        # Tabs anlegen
+        #Tabs anlegen
         self.sim_tab = self.tabs.add("Simulation")
         self.image_tab = self.tabs.add("FMU Ansicht")
 
-        # Grid config
+        #Grid config
         self.sim_tab.grid_rowconfigure(0, weight=1)
         self.sim_tab.grid_columnconfigure(0, weight=1)
 
         self.image_tab.grid_rowconfigure(0, weight=1)
         self.image_tab.grid_columnconfigure(0, weight=1)
 
-        # Inhalte erzeugen
+        #Inhalte erzeugen
         self.create_main_view()
         self.create_image_view()
 
@@ -267,9 +275,9 @@ class BaseGUI(ctk.CTk):
         self.canvas = FigureCanvasTkAgg(self.fig, master=self.sim_tab)
         self.canvas.get_tk_widget().grid(row=0, column=0, sticky="nsew", padx=10, pady=10)
 
-
+    #Erstellung der png Ansicht
     def create_image_view(self):
-        #weißer Hintergund
+        #setzen auf weißen Hintergund
         self.image_container = ctk.CTkFrame(
             self.image_tab,
             fg_color="white"
@@ -309,26 +317,26 @@ class BaseGUI(ctk.CTk):
             self.image_label.configure(text="Kein PNG zur FMU gefunden")
             return
 
-        # Originalbild laden
+        #Originalbild laden
         img = Image.open(img_path)
 
-        # Layout aktualisieren
+        #Layout aktualisieren
         self.update_idletasks()
 
         tab_w = self.image_container.winfo_width()
         tab_h = self.image_container.winfo_height()
 
-        # Fallback
+        #Fallback
         if tab_w <= 1 or tab_h <= 1:
             tab_w, tab_h = 800, 600
 
         max_w = int(tab_w * 0.8)
         max_h = int(tab_h * 0.8)
 
-        # Standard: Originalgröße
+        #Standard: Originalgröße
         new_w, new_h = img.width, img.height
 
-        # NUR skalieren, wenn Bild zu groß ist
+        #NUR skalieren, wenn Bild zu groß ist
         if img.width > max_w or img.height > max_h:
 
             img_ratio = img.width / img.height
@@ -350,7 +358,7 @@ class BaseGUI(ctk.CTk):
         )
 
         self.image_label.configure(text="", image=self.fmu_image)
-        self.image_label.image = self.fmu_image  # Referenz halten
+        self.image_label.image = self.fmu_image  #Bildreferenz halten
 
 
 
@@ -372,7 +380,7 @@ class BaseGUI(ctk.CTk):
     
     def create_parameter_fields(self):
 
-        #verherige widgets löschen
+        #vorherige widgets löschen
         for widget in self.parameter_scroll.winfo_children():
             widget.destroy()
         self.parameter_entries.clear()
@@ -474,13 +482,14 @@ class BaseGUI(ctk.CTk):
 
     #simulation starten nach knopfdruck
     def run_sim(self):
+        #Ohne geladene FMU keine Simulation möglich
         if not self.fmu_path:
             self.status.set("Keine FMU geladen.")
             return 0
 
         self.status.set("Simulation laeuft...")
 
-        #parameter lesen
+        #Parameterwerte aus Eingabefeldern lesen
         start_values = {}
         for name, entry in self.parameter_entries.items():
             try:
@@ -490,7 +499,7 @@ class BaseGUI(ctk.CTk):
                 self.status.set(f"Ungueltiger Wert für Parameter {name}.")
                 return 0
 
-        #stop time checekn
+        #stop time cheken
         try:
             user_stop_time = float(self.stop_time_entry.get())
             if user_stop_time <= 0:
@@ -514,16 +523,15 @@ class BaseGUI(ctk.CTk):
             self.status.set("Ungültige Parameter markiert.")
             return
         
-        #cosim oder exchange?
-        #fmi_type = "CoSimulation" if self.model_description.coSimulation else "ModelExchange"
-
-        #fmu-typ wählen (diesmal das es klappt)
+        #Bestimmen ob ModelExchange oder CoSimulation genutzt wird
         md = self.model_description
         if md.modelExchange:
             fmi_type = "ModelExchange"
         else: 
             fmi_type = "CoSimulation"
         
+        #Simulation der FMU über fmpy
+        #Ergebnis enthält Zeitreihe aller berechneten Variablen
         try:
             result = simulate_fmu(
                 self.fmu_path,
@@ -552,10 +560,12 @@ class BaseGUI(ctk.CTk):
         self.last_result = result
 
         #Plot aktualisieren
+        #Vorherigen Plot löschen
         self.ax.clear()
     
+        #zweite Achse entfernen falls vorhanden
         if self.ax2 is not None:        
-            self.ax2.remove()   # twinx "clear"
+            self.ax2.remove()   
             self.ax2 = None
 
 
@@ -613,8 +623,11 @@ class BaseGUI(ctk.CTk):
             self.load_fmu(fmu_path)
 
  
-    #lade-funktion für fmus
+    #Lade-funktion für FMUs
     def load_fmu(self, path): 
+        #Pfad merken und Modelbeschreibung einlesen
+        #ModelDescription enthält alle Variablen,
+        #Parameter und Metadaten der FMU
         self.fmu_path = path
         self.model_description = read_model_description(self.fmu_path)
 
@@ -637,14 +650,14 @@ class BaseGUI(ctk.CTk):
 
         self.load_fmu_image(path)
 
-        #statusupdate
+        #Statusupdate
         self.status.set(f"Geladene FMU: {self.fmu_path}")
 
         self.y_change()
 
         
 
-    #dropdown von y2 deaktivieren wenn y1 none ist    
+    #Dropdown von y2 deaktivieren wenn y1 none ist    
     def y_change(self, *args):
         y_name = self.y_var.get()
         chkbx_any = any(var.get() for var in self.multi_outs.values()) 
@@ -655,9 +668,9 @@ class BaseGUI(ctk.CTk):
         else:
             self.y2_dropdown.configure(state="normal")
 
-    # checkboxen für mehrere outputs erstellen
+    #Checkboxen für mehrere outputs erstellen
     def build_multi_checkboxes(self):
-        #vorherige widgets löschen
+        #Vorherige Widgets löschen
         for widget in self.multi_scroll.winfo_children():
             widget.destroy()
         self.multi_outs.clear()
@@ -673,7 +686,7 @@ class BaseGUI(ctk.CTk):
     def check_fmu_compatibility(self, fmu_path):
         issues = []
 
-        # OS prüfen
+        #OS prüfen
         raw_system = platform.system().lower()
 
         platform_map = {
@@ -691,10 +704,8 @@ class BaseGUI(ctk.CTk):
             return issues
 
         available_platforms = os.listdir(binaries_path)
-        #print(available_platforms)
         platform_ok = False
         for p in available_platforms:
-            #print(p.lower())
             if system in p.lower():
                 platform_ok = True
 
@@ -703,13 +714,13 @@ class BaseGUI(ctk.CTk):
                 f"Keine passenden Binaries für {system}. Gefunden: {available_platforms}"
             )
 
-        # FMI-Typ prüfen (angepasst)
+        #FMI-Typ prüfen
         md = self.model_description
         if not md.coSimulation:
             issues.append("FMU unterstützt keine ModelExchange (nur CoSimulation).")
         return issues
     
-    #rote Makierung von Fehlerhaften Eingabewerten
+    #Rote Makierung von Fehlerhaften Eingabewerten
     def mark_parameter_invalid(self, name):
         entry = self.parameter_entries.get(name)
         if entry:
@@ -722,6 +733,8 @@ class BaseGUI(ctk.CTk):
 
 
     def validate_parameters(self):
+        #Prüft eingegebene Parameter auf gültige Werte
+        #(inkl. optionaler min/max Grenzen aus der FMU)
         invalid = []
 
         for var in self.model_description.modelVariables:
