@@ -150,7 +150,8 @@ class BaseGUI(ctk.CTk):
         btn_help.pack(side="right", padx=5, pady=2)
 
         #Dropdown für vordefinierte FMUs
-        self.quick_menu = ctk.CTkOptionMenu(self.topbar, values=["Beispiele"] + list(self.quick_fmus.keys()), command=self.on_quick_select)
+        self.quick_menu = ctk.CTkOptionMenu(self.topbar, values=["Beispiele"] + 
+                                            list(self.quick_fmus.keys()), command=self.on_quick_select)
         self.quick_menu.pack(side="left", padx=5, pady=2)
 
     
@@ -499,7 +500,7 @@ class BaseGUI(ctk.CTk):
                 self.status.set(f"Ungueltiger Wert für Parameter {name}.")
                 return 0
 
-        #stop time cheken
+        #stop time checken
         try:
             user_stop_time = float(self.stop_time_entry.get())
             if user_stop_time <= 0:
@@ -639,9 +640,11 @@ class BaseGUI(ctk.CTk):
                 print("FMU-Warnung:", issue)
 
         #outputs aus FMU lesen für dropdowns
-        self.outputs = [var.name for var in self.model_description.modelVariables if var.causality == "output" ]
+        self.outputs = [var.name for var in self.model_description.modelVariables 
+                        if var.causality == "output" ]
 
-        self.all_plottable = [var.name for var in self.model_description.modelVariables if self.is_plottable(var)]
+        self.all_plottable = [var.name for var in self.model_description.modelVariables
+                               if self.is_plottable(var)]
 
 
         self.update_plot_dropdowns()
